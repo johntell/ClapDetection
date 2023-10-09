@@ -2,10 +2,11 @@ import pyaudio
 import numpy as np
 import time
 import requests
+from scipy.signal import butter, lfilter, find_peaks
 
 # Constants
-VOLUME_THRESHOLD = 12000
-RATE = 8000
+VOLUME_THRESHOLD = 2000
+RATE = 44100
 BUFFER = 1024
 DEBOUNCE_TIME = 0.15  # seconds
 RESET_TIME = 1.0  # seconds to reset the clap pattern
@@ -21,67 +22,56 @@ stream = p.open(format=pyaudio.paInt16,
                 input=True,
                 frames_per_buffer=BUFFER)
 
-def detect_clap(audio_data):
-    """Detects clap based on amplitude threshold."""
-    return np.max(np.abs(audio_data)) > VOLUME_THRESHOLD
+def bandpass_filter(data, lowcut, highcut, fs, order=5):
+    nyq = 0.5 * fs
+    low = lowcut / nyq
+    high = highcut / nyq
+    b, a = butter(order, [low, high], btype='band')
+    filtered_data = lfilter(b, a, data)
+    return filtered_data
 
 def compute_frequencies(audio_data):
-    """Computes FFT and returns frequencies."""
     fft_data = np.fft.fft(audio_data)
     magnitude = np.abs(fft_data)
     frequencies = np.fft.fftfreq(len(fft_data), 1.0/RATE)
     return frequencies, magnitude
-
-def is_clap_frequency(dominant_frequency):
-    #Check whether the dominant frequency is within a clap's possible frequency range.
-    return (800 <= dominant_frequency <= 2200) or (300 <= dominant_frequency <= 500)
 
 last_clap_time = time.time() - DEBOUNCE_TIME
 clap_times = []
 
 try:
     while True:
-        # Reading from audio input stream into data with BUFFER samples
         input_data = stream.read(BUFFER)
         audio_data = np.frombuffer(input_data, dtype=np.int16)
-
         current_time = time.time()
 
-        if detect_clap(audio_data) and (current_time - last_clap_time >= DEBOUNCE_TIME):
-            frequencies, magnitude = compute_frequencies(audio_data)
-            dominant_frequency = abs(frequencies[np.argmax(magnitude)])
+        # Apply bandpass filter to focus on clap frequencies
+        filtered_audio = bandpass_filter(audio_data, lowcut=2000, highcut=2800, fs=RATE)
 
-            # Check if the dominant frequency is in the clap frequency range
-            if is_clap_frequency(dominant_frequency):
-                print(f"Clap detected! Dominant frequency: {dominant_frequency:.2f} Hz")
-                last_clap_time = current_time
-                clap_times.append(current_time)
-            else:
-                print(f"Noise detected, {dominant_frequency:.2f} Hz ignored.")
+        # Find peaks in the audio signal
+        peaks, _ = find_peaks(filtered_audio, height=VOLUME_THRESHOLD)
+
+        # If peaks are found and debounce time has passed
+        if len(peaks) > 0 and (current_time - last_clap_time >= DEBOUNCE_TIME):
+            print(f"Clap detected! {len(peaks)} peaks found")
+            last_clap_time = current_time
+            clap_times.append(current_time)
 
         # Check for pattern reset
         if clap_times and (current_time - clap_times[-1] >= RESET_TIME):
-            # Compute intervals between claps and print pattern
             intervals = [clap_times[i] - clap_times[i-1] for i in range(1, len(clap_times))]
             pattern = ["clap"]
             for interval in intervals:
-                if interval < 0.5:
-                    symbol = " - "
-                elif interval < 1:
-                    symbol = " _ "
-                else:  # Add additional conditions if needed
-                    symbol = " ? "
+                symbol = " - " if interval < 0.5 else " _ "
                 pattern.append(symbol + "clap")
             pattern_str = "".join(pattern)
             print("Pattern:", pattern_str)
+
             if pattern_str == "clap - clap":
                 light_state = not light_state
                 url = "http://192.168.50.91/api/MGHLl7IZa-qnZJH9GC8DT9bEeUgnywktYFWtMR9T/groups/1/action"
                 payload = {"on": light_state}
-                headers = {
-                    "Content-Type": "application/json",
-                    "User-Agent": "Insomnia/2023.5.6"
-                }
+                headers = {"Content-Type": "application/json"}
                 response = requests.request("PUT", url, json=payload, headers=headers)
                 print(response.text)
 
