@@ -5,7 +5,7 @@ import requests
 from scipy.signal import butter, lfilter, find_peaks
 
 # Constants
-VOLUME_THRESHOLD = 2000
+VOLUME_THRESHOLD = 5000
 RATE = 44100
 BUFFER = 1024
 DEBOUNCE_TIME = 0.15  # seconds
