@@ -39,43 +39,58 @@ def compute_frequencies(audio_data):
 last_clap_time = time.time() - DEBOUNCE_TIME
 clap_times = []
 
+def clap_detect_alg1(audio_data, current_time, last_clap_time):
+    clap_detected = False
+
+    # Apply bandpass filter to focus on clap frequencies
+    filtered_audio = bandpass_filter(audio_data, lowcut=2000, highcut=2800, fs=RATE)
+
+    # Find peaks in the audio signal
+    peaks, _ = find_peaks(filtered_audio, height=VOLUME_THRESHOLD)
+
+    # If peaks are found and debounce time has passed
+    if len(peaks) > 0 and (current_time - last_clap_time >= DEBOUNCE_TIME):
+        print(f"Clap detected! {len(peaks)} peaks found")
+        clap_detected = True
+
+    return clap_detected
+
+def pattern_detect(current_time, clap_times):
+    # Check for pattern reset
+    if clap_times and (current_time - clap_times[-1] >= RESET_TIME):
+        intervals = [clap_times[i] - clap_times[i-1] for i in range(1, len(clap_times))]
+        pattern = ["clap"]
+        for interval in intervals:
+            symbol = " - " if interval < 0.5 else " _ "
+            pattern.append(symbol + "clap")
+        pattern_str = "".join(pattern)
+        print("Pattern:", pattern_str)
+        return pattern_str
+    return ''
+
 try:
     while True:
         input_data = stream.read(BUFFER)
         audio_data = np.frombuffer(input_data, dtype=np.int16)
         current_time = time.time()
-
-        # Apply bandpass filter to focus on clap frequencies
-        filtered_audio = bandpass_filter(audio_data, lowcut=2000, highcut=2800, fs=RATE)
-
-        # Find peaks in the audio signal
-        peaks, _ = find_peaks(filtered_audio, height=VOLUME_THRESHOLD)
-
-        # If peaks are found and debounce time has passed
-        if len(peaks) > 0 and (current_time - last_clap_time >= DEBOUNCE_TIME):
-            print(f"Clap detected! {len(peaks)} peaks found")
+        if clap_detect_alg1(audio_data, current_time, last_clap_time):
             last_clap_time = current_time
             clap_times.append(current_time)
 
-        # Check for pattern reset
-        if clap_times and (current_time - clap_times[-1] >= RESET_TIME):
-            intervals = [clap_times[i] - clap_times[i-1] for i in range(1, len(clap_times))]
-            pattern = ["clap"]
-            for interval in intervals:
-                symbol = " - " if interval < 0.5 else " _ "
-                pattern.append(symbol + "clap")
-            pattern_str = "".join(pattern)
-            print("Pattern:", pattern_str)
+        result = pattern_detect(current_time, clap_times)
 
-            if pattern_str == "clap - clap":
-                light_state = not light_state
-                url = "http://192.168.50.91/api/MGHLl7IZa-qnZJH9GC8DT9bEeUgnywktYFWtMR9T/groups/1/action"
-                payload = {"on": light_state}
-                headers = {"Content-Type": "application/json"}
-                response = requests.request("PUT", url, json=payload, headers=headers)
-                print(response.text)
+        if result == "clap - clap":
+            light_state = not light_state
+            url = "http://192.168.50.91/api/MGHLl7IZa-qnZJH9GC8DT9bEeUgnywktYFWtMR9T/groups/1/action"
+            payload = {"on": light_state}
+            headers = {"Content-Type": "application/json"}
+            response = requests.request("PUT", url, json=payload, headers=headers)
+            print(response.text)
 
+        if result is not '':
             clap_times = []  # Reset clap_times
+
+
 
 except KeyboardInterrupt:
     print("Exited gracefully")

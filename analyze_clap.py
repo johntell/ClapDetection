@@ -8,7 +8,7 @@ def plot_psd(audio_data, sample_rate):
     plt.title("Power Spectral Density (PSD)")
     plt.xlabel("Frequency (Hz)")
     plt.ylabel("PSD [V**2/Hz]")
-    plt.xlim(0, 3000)  # focusing on the lower frequency range where claps typically are
+    plt.xlim(0, 20000)  # focusing on the lower frequency range where claps typically are
     plt.show()
 
 def analyze_clap(file_path):
@@ -22,5 +22,5 @@ def analyze_clap(file_path):
     plot_psd(audio_data, sample_rate)
 
 if __name__ == "__main__":
-    file_path = "clap43.wav"
+    file_path = "data/clap43.wav"
     analyze_clap(file_path)
