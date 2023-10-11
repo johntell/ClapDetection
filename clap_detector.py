@@ -62,14 +62,27 @@ def clap_detect_alg1(audio_data, current_sample, last_clap_sample):
 def pattern_detect(current_sample, clap_times):
     # Check for pattern reset
     if clap_times and (sub_sample(current_sample, clap_times[-1]) >= RESET_TIME_SAMPLES):
+        pattern = []
         intervals = [sub_sample(clap_times[i], clap_times[i-1]) for i in range(1, len(clap_times))]
-        pattern = ["clap"]
+
+        # Initialize variables
+        short_interval_count = 0
+
+        # Loop through each interval and update short_interval_count
+        # and pattern accordingly.
         for interval in intervals:
-            symbol = " - " if interval < CLAP_INTERVAL_SAMPLES else " _ "
-            pattern.append(symbol + "clap")
-        pattern_str = "".join(pattern)
-        print("Pattern:", pattern_str)
-        return pattern_str
+            if interval < CLAP_INTERVAL_SAMPLES:  # Short interval detected
+                short_interval_count += 1
+            else:  # Long interval or end of pattern detected
+                pattern.append(short_interval_count)
+                short_interval_count = 0  # Reset short_interval_count for the next group
+
+        # Handle the case where the pattern ends with a short interval
+        # or if it ends with a long interval but no short interval followed before
+        pattern.append(short_interval_count)
+
+        print("Pattern:", pattern)
+        return pattern
     return ''
 
 if __name__ == '__main__':

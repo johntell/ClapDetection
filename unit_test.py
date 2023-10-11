@@ -13,6 +13,7 @@ class TestStringMethods(unittest.TestCase):
     def test_alg1(self):
         num_tests = 0
         passed_tests = 0
+        failed_tests = []
         for filename in os.listdir(PATH_TO_DATA):
             if filename.endswith(".wav"):
                 num_tests = num_tests + 1
@@ -46,43 +47,23 @@ class TestStringMethods(unittest.TestCase):
 
                         result = pattern_detect(current_sample, clap_times)
 
-                        #todo: make below more intelligent
-                        if result == 'clap':
-                            detected_patterns.append(0)
-                        elif result == 'clap _ clap':
-                            detected_patterns.append(0)
-                            detected_patterns.append(0)
-                        elif result == 'clap _ clap _ clap':
-                            detected_patterns.append(0)
-                            detected_patterns.append(0)
-                            detected_patterns.append(0)
-                        elif result == 'clap _ clap _ clap _ clap _ clap _ clap _ clap':
-                            detected_patterns.append(0)
-                            detected_patterns.append(0)
-                            detected_patterns.append(0)
-                            detected_patterns.append(0)
-                            detected_patterns.append(0)
-                            detected_patterns.append(0)
-                            detected_patterns.append(0)
-                        elif result == 'clap - clap':
-                            detected_patterns.append(1)
-                        elif result == 'clap - clap - clap':
-                            detected_patterns.append(2)
-                        elif result == 'clap - clap - clap - clap - clap':
-                            detected_patterns.append(4)
+                        if result:  # Non-empty result indicates a pattern was detected
+                            detected_patterns.extend(result)  # Store the detected pattern
+                            clap_times = []  # Reset clap_times only when a pattern was detected
 
-                        if result is not '':
-                            clap_times = []  # Reset clap_times
                         i = i + BUFFER
 
                     print("expected_patterns %s" % str(data['clap_pattern']))
                     print("detected_patterns %s" % str(detected_patterns))
                     if data['clap_pattern'] == detected_patterns:
                         passed_tests = passed_tests + 1
+                    else:
+                        failed_tests.append({'filename': filename, 'expected': data['clap_pattern'], 'detected': detected_patterns})
                 print('')
             else:
                 continue
 
+        print(failed_tests)
         self.assertEqual(passed_tests, num_tests)
 
 if __name__ == '__main__':
