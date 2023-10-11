@@ -9,18 +9,25 @@ VOLUME_THRESHOLD = 5000
 RATE = 44100
 BUFFER = 1024
 DEBOUNCE_TIME = 0.15  # seconds
+DEBOUNCE_TIME_SAMPLES = int(DEBOUNCE_TIME * RATE)
 RESET_TIME = 1.0  # seconds to reset the clap pattern
+RESET_TIME_SAMPLES = int(RESET_TIME * RATE)
+CLAP_INTERVAL = 0.5 # seconds
+CLAP_INTERVAL_SAMPLES = int(CLAP_INTERVAL * RATE)
 
-# Initialize the state to False (Light Off)
-light_state = False
+SECONDS_PER_TIME_PERIOD = 10
+SAMPLES_PER_TIME_PERIOD = SECONDS_PER_TIME_PERIOD * RATE
 
-# Initialize PyAudio and Stream
-p = pyaudio.PyAudio()
-stream = p.open(format=pyaudio.paInt16,
-                channels=1,
-                rate=RATE,
-                input=True,
-                frames_per_buffer=BUFFER)
+
+def sub_sample(a, b):
+    result = a - b
+
+    if b > a:
+        result = SAMPLES_PER_TIME_PERIOD + a - b
+    return result
+
+def add_sample(a, b):
+    return (a + b) % SAMPLES_PER_TIME_PERIOD
 
 def bandpass_filter(data, lowcut, highcut, fs, order=5):
     nyq = 0.5 * fs
@@ -36,10 +43,7 @@ def compute_frequencies(audio_data):
     frequencies = np.fft.fftfreq(len(fft_data), 1.0/RATE)
     return frequencies, magnitude
 
-last_clap_time = time.time() - DEBOUNCE_TIME
-clap_times = []
-
-def clap_detect_alg1(audio_data, current_time, last_clap_time):
+def clap_detect_alg1(audio_data, current_sample, last_clap_sample):
     clap_detected = False
 
     # Apply bandpass filter to focus on clap frequencies
@@ -49,35 +53,52 @@ def clap_detect_alg1(audio_data, current_time, last_clap_time):
     peaks, _ = find_peaks(filtered_audio, height=VOLUME_THRESHOLD)
 
     # If peaks are found and debounce time has passed
-    if len(peaks) > 0 and (current_time - last_clap_time >= DEBOUNCE_TIME):
+    if len(peaks) > 0 and (sub_sample(current_sample, last_clap_sample) >= DEBOUNCE_TIME_SAMPLES):
         print(f"Clap detected! {len(peaks)} peaks found")
         clap_detected = True
 
     return clap_detected
 
-def pattern_detect(current_time, clap_times):
+def pattern_detect(current_sample, clap_times):
     # Check for pattern reset
-    if clap_times and (current_time - clap_times[-1] >= RESET_TIME):
-        intervals = [clap_times[i] - clap_times[i-1] for i in range(1, len(clap_times))]
+    if clap_times and (sub_sample(current_sample, clap_times[-1]) >= RESET_TIME_SAMPLES):
+        intervals = [sub_sample(clap_times[i], clap_times[i-1]) for i in range(1, len(clap_times))]
         pattern = ["clap"]
         for interval in intervals:
-            symbol = " - " if interval < 0.5 else " _ "
+            symbol = " - " if interval < CLAP_INTERVAL_SAMPLES else " _ "
             pattern.append(symbol + "clap")
         pattern_str = "".join(pattern)
         print("Pattern:", pattern_str)
         return pattern_str
     return ''
 
+
+# Initialize the state to False (Light Off)
+light_state = False
+
+# Initialize PyAudio and Stream
+p = pyaudio.PyAudio()
+stream = p.open(format=pyaudio.paInt16,
+                channels=1,
+                rate=RATE,
+                input=True,
+                frames_per_buffer=BUFFER)
+
+last_clap_sample = 0
+current_sample = 0 + DEBOUNCE_TIME_SAMPLES
+clap_times = []
+
 try:
     while True:
         input_data = stream.read(BUFFER)
-        audio_data = np.frombuffer(input_data, dtype=np.int16)
-        current_time = time.time()
-        if clap_detect_alg1(audio_data, current_time, last_clap_time):
-            last_clap_time = current_time
-            clap_times.append(current_time)
+        current_sample = add_sample(current_sample, BUFFER)
 
-        result = pattern_detect(current_time, clap_times)
+        audio_data = np.frombuffer(input_data, dtype=np.int16)
+        if clap_detect_alg1(audio_data, current_sample, last_clap_sample):
+            last_clap_sample = current_sample
+            clap_times.append(current_sample)
+
+        result = pattern_detect(current_sample, clap_times)
 
         if result == "clap - clap":
             light_state = not light_state
