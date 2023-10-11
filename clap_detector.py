@@ -6,7 +6,7 @@ from scipy.signal import butter, lfilter, find_peaks
 
 # Constants
 VOLUME_THRESHOLD = 5000
-RATE = 44100
+RATE = 48000
 BUFFER = 1024
 DEBOUNCE_TIME = 0.15  # seconds
 DEBOUNCE_TIME_SAMPLES = int(DEBOUNCE_TIME * RATE)
@@ -72,10 +72,6 @@ def pattern_detect(current_sample, clap_times):
         return pattern_str
     return ''
 
-
-# Initialize the state to False (Light Off)
-light_state = False
-
 # Initialize PyAudio and Stream
 p = pyaudio.PyAudio()
 stream = p.open(format=pyaudio.paInt16,
@@ -99,14 +95,6 @@ try:
             clap_times.append(current_sample)
 
         result = pattern_detect(current_sample, clap_times)
-
-        if result == "clap - clap":
-            light_state = not light_state
-            url = "http://192.168.50.91/api/MGHLl7IZa-qnZJH9GC8DT9bEeUgnywktYFWtMR9T/groups/1/action"
-            payload = {"on": light_state}
-            headers = {"Content-Type": "application/json"}
-            response = requests.request("PUT", url, json=payload, headers=headers)
-            print(response.text)
 
         if result is not '':
             clap_times = []  # Reset clap_times
