@@ -5,7 +5,7 @@ import requests
 from scipy.signal import butter, lfilter, find_peaks
 
 # Constants
-VOLUME_THRESHOLD = 5000
+VOLUME_THRESHOLD = 1500#5000
 RATE = 48000
 BUFFER = 1024
 DEBOUNCE_TIME = 0.15  # seconds
@@ -72,38 +72,38 @@ def pattern_detect(current_sample, clap_times):
         return pattern_str
     return ''
 
-# Initialize PyAudio and Stream
-p = pyaudio.PyAudio()
-stream = p.open(format=pyaudio.paInt16,
-                channels=1,
-                rate=RATE,
-                input=True,
-                frames_per_buffer=BUFFER)
+if __name__ == '__main__':
 
-last_clap_sample = 0
-current_sample = 0 + DEBOUNCE_TIME_SAMPLES
-clap_times = []
+    # Initialize PyAudio and Stream
+    p = pyaudio.PyAudio()
+    stream = p.open(format=pyaudio.paInt16,
+                    channels=1,
+                    rate=RATE,
+                    input=True,
+                    frames_per_buffer=BUFFER)
 
-try:
-    while True:
-        input_data = stream.read(BUFFER)
-        current_sample = add_sample(current_sample, BUFFER)
+    last_clap_sample = 0
+    current_sample = 0 + DEBOUNCE_TIME_SAMPLES
+    clap_times = []
 
-        audio_data = np.frombuffer(input_data, dtype=np.int16)
-        if clap_detect_alg1(audio_data, current_sample, last_clap_sample):
-            last_clap_sample = current_sample
-            clap_times.append(current_sample)
+    try:
+        while True:
+            input_data = stream.read(BUFFER)
+            current_sample = add_sample(current_sample, BUFFER)
 
-        result = pattern_detect(current_sample, clap_times)
+            audio_data = np.frombuffer(input_data, dtype=np.int16)
+            if clap_detect_alg1(audio_data, current_sample, last_clap_sample):
+                last_clap_sample = current_sample
+                clap_times.append(current_sample)
 
-        if result is not '':
-            clap_times = []  # Reset clap_times
+            result = pattern_detect(current_sample, clap_times)
 
+            if result is not '':
+                clap_times = []  # Reset clap_times
 
-
-except KeyboardInterrupt:
-    print("Exited gracefully")
-finally:
-    stream.stop_stream()
-    stream.close()
-    p.terminate()
+    except KeyboardInterrupt:
+        print("Exited gracefully")
+    finally:
+        stream.stop_stream()
+        stream.close()
+        p.terminate()
