@@ -5,14 +5,14 @@ import requests
 from scipy.signal import butter, lfilter, find_peaks
 
 # Constants
-VOLUME_THRESHOLD = 1500#5000
+VOLUME_THRESHOLD = 4000#5000
 RATE = 48000
 BUFFER = 1024
 DEBOUNCE_TIME = 0.15  # seconds
 DEBOUNCE_TIME_SAMPLES = int(DEBOUNCE_TIME * RATE)
 RESET_TIME = 1.0  # seconds to reset the clap pattern
 RESET_TIME_SAMPLES = int(RESET_TIME * RATE)
-CLAP_INTERVAL = 0.5 # seconds
+CLAP_INTERVAL = 0.6 # seconds
 CLAP_INTERVAL_SAMPLES = int(CLAP_INTERVAL * RATE)
 
 SECONDS_PER_TIME_PERIOD = 10
@@ -45,10 +45,9 @@ def compute_frequencies(audio_data):
 
 def clap_detect_alg1(audio_data, current_sample, last_clap_sample):
     clap_detected = False
-
     # Apply bandpass filter to focus on clap frequencies
-    filtered_audio = bandpass_filter(audio_data, lowcut=2000, highcut=2800, fs=RATE)
-
+    filtered_audio = bandpass_filter(audio_data, lowcut=1600, highcut=2300, fs=RATE)
+    #(1700, 1900)
     # Find peaks in the audio signal
     peaks, _ = find_peaks(filtered_audio, height=VOLUME_THRESHOLD)
 
